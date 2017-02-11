@@ -1,0 +1,81 @@
+#Write a Dockerfile (CentOS 6) to install the following in a Docker continer:
+#
+#Python 2.7
+#
+#MongoDB - any version
+#
+#Apache tomcat 7 - running on port 8080
+#
+#Please include comments at every command explaining what it does.
+#
+#Write the command to run the Dockerfile such that once the container boots, 
+#apache tomcat's home page is accessible from the host on port 7080.
+#
+#Solution : 
+
+#Base Image Centos 6
+FROM centos:6
+MAINTAINER "Hemant" <hemantbanafal@gmail.com>
+
+# Installing Yum dependencies
+RUN yum -y update && yum groupinstall -y 'development tools' && \
+yum install -y zlib-dev openssl-devel \
+sqlite-devel bzip2-devel wget
+
+#Dowanloading Python2.7, upack, install Python2.7
+RUN wget https://www.python.org/ftp/python/2.7.13/Python-2.7.13.tgz && \
+tar -xvf Python-2.7.13.tgz && \
+cd /Python-2.7.13 && \
+./configure --prefix=/usr/local && \
+make && make altinstall
+
+#Adding Python in Path
+RUN export PATH="/usr/local/bin:$PATH"
+
+#Installing Mongodb server
+RUN yum -y install epel-release && yum -y install mongodb-server && \
+mkdir -p /data/db
+
+#Exposing Default Port of Mongodb server
+EXPOSE 27017
+
+#Downloading Java8 rpm and installing
+RUN wget --header "Cookie: oraclelicense=accept-securebackup-cookie" http://download.oracle.com/otn-pub/java/jdk/8u121-b13/e9e7ea248e2c4826b92b3f075a80e441/jdk-8u121-linux-x64.rpm
+RUN yum -y localinstall jdk-8u121-linux-x64.rpm
+
+#Downloading Tomcat 7, untar the downloaded file and remove the downloaded tars and rpms
+RUN wget http://www.us.apache.org/dist/tomcat/tomcat-7/v7.0.75/bin/apache-tomcat-7.0.75.tar.gz && \
+tar -xvf apache-tomcat-7.0.75.tar.gz && \
+rm -rf Python-2.7.13.tgz jdk-8u121-linux-x64.rpm apache-tomcat-7.0.75.tar.gz
+
+#Script to run tomcat as a service in docker
+RUN echo $'#!/bin/bash \
+\n# description: Tomcat Start Stop Restart \
+\n# processname: tomcat \
+\nJAVA_HOME=/usr/java/jdk1.8.0_121 \
+\nexport JAVA_HOME \
+\nPATH=$JAVA_HOME/bin:$PATH \
+\nexport PATH \
+\nCATALINA_HOME=/apache-tomcat-7.0.75 \
+\ncase $1 in \
+\nstart) \
+\nsh $CATALINA_HOME/bin/startup.sh \
+\n;; \
+\nstop) \
+\nsh $CATALINA_HOME/bin/shutdown.sh \
+\n;; \
+\nrestart) \
+\nsh $CATALINA_HOME/bin/shutdown.sh \
+\nsh $CATALINA_HOME/bin/startup.sh \
+\n;; \
+\nesac \
+\nexit 0' > /etc/init.d/tomcat
+
+#Exposing Default Port 8080 to access Tomcat
+EXPOSE 8080
+
+#Permission changing for tomcat file
+RUN chmod 755 /etc/init.d/tomcat
+
+#Entrypoint to start tomcat service when docker boots and open the bash shell
+ENTRYPOINT service tomcat start && /bin/bash
